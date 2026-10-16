@@ -21,6 +21,10 @@ export interface PipelineContext {
   braveApiKey?: string | null;
   /** Schlüssel der Bildanbieter aus der `.env` der Seite (`FAL_KEY`, `OPENROUTER_API_KEY`) und Adresse der Seite */
   imageKeys?: { fal?: string | null; openrouter?: string | null; siteUrl?: string | null };
+  /** Mail an die Admins der Seite (Mailversand der Seite); ohne Funktion keine Hinweis-Mail */
+  notify?: (mail: { subject: string; text: string; html: string }) => Promise<void>;
+  /** Adresse der News-Queue im Admin für Links in der Mail, z. B. https://seite.de/admin/news */
+  adminUrl?: string | null;
   /** Warten (für die Pause zwischen Brave-Anfragen); in Tests ersetzbar */
   sleep?: (ms: number) => Promise<void>;
 }

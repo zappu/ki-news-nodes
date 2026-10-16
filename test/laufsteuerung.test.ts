@@ -56,7 +56,7 @@ describe("Sperre und Laufprotokoll", () => {
     expect(run).toMatchObject({ status: "completed", trigger: "manual", step: null, message: "Lauf abgeschlossen." });
     expect(run.finishedAt).not.toBeNull();
     expect(run.log).toEqual(res.log);
-    expect(run.log[0]).toBe("Wiederholung: keine Fehlversuche.");
+    expect(run.log.find((l) => l.startsWith("Wiederholung:"))).toBe("Wiederholung: keine Fehlversuche.");
   });
 
   it("überspringt einen Lauf, solange ein anderer die Sperre hält", async () => {
@@ -94,7 +94,7 @@ describe("Sperre und Laufprotokoll", () => {
     const { ctx } = setup();
     const res = await runPipeline(ctx);
     expect(res.status).toBe("failed");
-    expect(res.log.at(-1)).toBe("Sperre verloren vor Schritt RSS-Import, Lauf abgebrochen.");
+    expect(res.log.at(-1)).toBe("Sperre verloren vor Schritt Veröffentlichung, Lauf abgebrochen.");
     expect((await store.getRun(res.runId))!.status).toBe("failed");
   });
 
@@ -121,7 +121,7 @@ describe("Fehlerwiederholung", () => {
     let [e] = await store.takeByStatus(SITE, ["failed"], 5);
     expect(e).toMatchObject({ attempts: 1, retryStatus: "new" });
     const second = await runPipeline(ctx);
-    expect(second.log[0]).toBe("Wiederholung: 1 Einträge erneut eingereiht, 0 aussortiert.");
+    expect(second.log.find((l) => l.startsWith("Wiederholung:"))).toBe("Wiederholung: 1 Einträge erneut eingereiht, 0 aussortiert.");
     [e] = await store.takeByStatus(SITE, ["failed"], 5);
     expect(e!.attempts).toBe(2);
     await runPipeline(ctx);

@@ -11,6 +11,7 @@ import { crawl } from "./steps/crawl";
 import { teaserImages } from "./steps/images";
 import { importFeeds } from "./steps/importFeeds";
 import { publish } from "./steps/publish";
+import { maintenance } from "./steps/maintenance";
 import { retryFailed } from "./steps/retry";
 import { localDayKey, startOfLocalDay } from "./time";
 import type { LlmFn } from "./types";
@@ -32,6 +33,7 @@ type Step = { name: string; fn: (ctx: PipelineContext, run: RunState) => Promise
 
 /** Reihenfolge: Fehlerwiederholung, dann Veröffentlichung bewusst früh (KNP 1.8.0) */
 export const STEPS: Step[] = [
+  { name: "Wartung", fn: maintenance },
   { name: "Wiederholung", fn: retryFailed },
   { name: "Veröffentlichung", fn: publish },
   { name: "RSS-Import", fn: importFeeds },

@@ -6,7 +6,9 @@
   "type": "module",
   "license": "UNLICENSED",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./admin": "./src/admin/index.ts",
+    "./admin/ui": "./src/admin/ui/NewsAdmin.tsx"
   },
   "scripts": {
     "check": "tsc --noEmit",
@@ -27,7 +29,14 @@
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "5.9.3",
     "vitest": "^5.0.1"
+  },
+  "peerDependencies": {
+    "react": ">=19"
   }
 }

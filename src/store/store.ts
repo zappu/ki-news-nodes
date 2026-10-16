@@ -16,6 +16,14 @@ export interface TakeOptions {
   kind?: SourceKind;
 }
 
+export interface QueueListFilter {
+  status?: QueueStatus | null;
+  profileId?: number | null;
+  search?: string | null;
+  page?: number;
+  pageSize?: number;
+}
+
 export type RunTrigger = "cron" | "manual";
 export type RunStatus = "running" | "completed" | "failed" | "locked";
 
@@ -229,6 +237,11 @@ export class NewsStore {
     await this.pool.query(`UPDATE news_profiles SET ${sets.join(", ")} WHERE site_id = ? AND id = ?`, vals);
   }
 
+  async deleteProfile(siteId: string, id: number): Promise<boolean> {
+    const [res] = await this.pool.query<ResultSetHeader>("DELETE FROM news_profiles WHERE site_id = ? AND id = ?", [siteId, id]);
+    return res.affectedRows > 0;
+  }
+
   // ─── Queue: Duplikate und Anlegen ────────────────────────────────────────────────────────────
 
   async guidExists(siteId: string, guid: string): Promise<boolean> {
@@ -421,6 +434,66 @@ export class NewsStore {
     if (!ids.length) return 0;
     const [res] = await this.pool.query<ResultSetHeader>("DELETE FROM news_queue WHERE site_id = ? AND id IN (?)", [siteId, ids]);
     return res.affectedRows;
+  }
+
+  /** Liste für den Admin, neueste zuerst, mit Filtern und Seiten */
+  async listQueue(siteId: string, f: QueueListFilter = {}): Promise<{ items: QueueEntry[]; total: number }> {
+    const where: string[] = ["site_id = ?"];
+    const params: unknown[] = [siteId];
+    if (f.status) {
+      where.push("status = ?");
+      params.push(f.status);
+    }
+    if (f.profileId) {
+      where.push("profile_id = ?");
+      params.push(f.profileId);
+    }
+    const q = f.search?.trim();
+    if (q) {
+      where.push("(title_original LIKE ? OR rewritten_title LIKE ? OR source_url LIKE ?)");
+      const like = "%" + q.replace(/[%_\\]/g, "\\$&") + "%";
+      params.push(like, like, like);
+    }
+    const pageSize = Math.min(200, Math.max(1, f.pageSize ?? 50));
+    const page = Math.max(1, f.page ?? 1);
+    const [countRows] = await this.pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS n FROM news_queue WHERE ${where.join(" AND ")}`, params);
+    const [rows] = await this.pool.query<RowDataPacket[]>(`SELECT * FROM news_queue WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ? OFFSET ?`, [
+      ...params,
+      pageSize,
+      (page - 1) * pageSize,
+    ]);
+    return { items: rows.map(rowToEntry), total: Number(countRows[0]?.n ?? 0) };
+  }
+
+  /** Einträge, die auf die Freigabe warten, je Profil */
+  async waitingByProfile(siteId: string): Promise<Map<number, number>> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT profile_id, COUNT(*) AS n FROM news_queue WHERE site_id = ? AND status = 'classified' GROUP BY profile_id", [siteId]);
+    return new Map(rows.map((r) => [r.profile_id as number, Number(r.n)]));
+  }
+
+  /**
+   * Ablauf: Nicht freigegebene (`classified`) Einträge, die seit `before` warten, sowie liegengebliebene
+   * `new`, `crawled` und `failed` werden aussortiert.
+   */
+  async expireEntries(siteId: string, before: Date, opts: { classified: boolean; days: number }): Promise<{ classified: number; stale: number }> {
+    let classified = 0;
+    if (opts.classified) {
+      const [res] = await this.pool.query<ResultSetHeader>(
+        "UPDATE news_queue SET status = 'rejected', error = ?, updated_at = ? WHERE site_id = ? AND status = 'classified' AND COALESCE(classified_at, created_at) < ?",
+        [`Abgelaufen: nicht innerhalb von ${opts.days} Tagen freigegeben`, this.now(), siteId, before],
+      );
+      classified = res.affectedRows;
+    }
+    const [res2] = await this.pool.query<ResultSetHeader>(
+      "UPDATE news_queue SET status = 'rejected', error = CONCAT(?, COALESCE(error, '-')), updated_at = ? WHERE site_id = ? AND status IN ('new', 'crawled', 'failed') AND created_at < ?",
+      [`Abgelaufen: nicht innerhalb von ${opts.days} Tagen verarbeitet. Letzte Meldung: `, this.now(), siteId, before],
+    );
+    return { classified, stale: res2.affectedRows };
+  }
+
+  async usageForDay(siteId: string, day: string): Promise<Record<string, number>> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT kind, count FROM news_usage WHERE site_id = ? AND day = ?", [siteId, day]);
+    return Object.fromEntries(rows.map((r) => [r.kind as string, Number(r.count)]));
   }
 
   async countByStatus(siteId: string): Promise<Record<QueueStatus, number>> {

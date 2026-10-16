@@ -66,8 +66,12 @@ export const siteSettingsSchema = z.object({
   braveDelayMs: clampInt(0, 5000, 1100),
   /** Tageslimit Bilder je Seite, 0 = ohne Limit */
   dailyImageLimit: clampInt(0, 10_000, 20),
-  /** Nicht freigegebene Einträge verfallen nach so vielen Tagen (Phase 5) */
+  /** Nicht freigegebene Einträge verfallen nach so vielen Tagen */
   expireDays: clampInt(1, 90, 14),
+  /** Hinweis-Mail bei wartenden Artikeln an/aus */
+  notifyWaiting: bool(true),
+  /** Ab dieser Stunde (Ortszeit) laufen Ablauf und Hinweis-Mail einmal am Tag */
+  maintenanceHour: clampInt(0, 23, 8),
 });
 export type SiteSettings = z.output<typeof siteSettingsSchema>;
 
