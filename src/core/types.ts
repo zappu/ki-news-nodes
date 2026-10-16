@@ -116,6 +116,8 @@ export interface PublishTarget {
   recentTitles(limit: number): Promise<string[]>;
   /** Schon angelegten Beitrag zu diesem Queue-Eintrag finden (Idempotenz) */
   findExisting(q: { queueId: number; title: string; fingerprint: string }): Promise<string | null>;
+  /** Teaserbild im Bildspeicher der Seite ablegen; `ref` wird später als `imageRef` übergeben */
+  uploadImage(file: { buffer: Buffer; mime: string; filename: string; alt: string }): Promise<{ ref: string; url: string }>;
   createPost(post: PostPayload): Promise<{ ref: string; url?: string }>;
   /** Vorhandenen Beitrag vervollständigen (nach abgebrochenem Lauf) */
   completePost(ref: string, post: PostPayload): Promise<void>;

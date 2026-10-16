@@ -19,6 +19,8 @@ export interface PipelineContext {
   publishBudgetMs?: number;
   /** Brave-Schlüssel aus der `.env` der Seite (`BRAVE_API_KEY`); ohne ihn keine Themensuche und keine Nachsuche */
   braveApiKey?: string | null;
+  /** Schlüssel der Bildanbieter aus der `.env` der Seite (`FAL_KEY`, `OPENROUTER_API_KEY`) und Adresse der Seite */
+  imageKeys?: { fal?: string | null; openrouter?: string | null; siteUrl?: string | null };
   /** Warten (für die Pause zwischen Brave-Anfragen); in Tests ersetzbar */
   sleep?: (ms: number) => Promise<void>;
 }

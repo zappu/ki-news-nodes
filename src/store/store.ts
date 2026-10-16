@@ -328,6 +328,20 @@ export class NewsStore {
     return { sql, params };
   }
 
+  /**
+   * Einträge für Teaserbilder: Status passt, noch ohne Bild, mit Bildbriefing, ohne endgültigen
+   * Bildfehler; älteste zuerst.
+   */
+  async takeImageCandidates(siteId: string, statuses: QueueStatus[], limit: number, finalErrorPrefix: string): Promise<QueueEntry[]> {
+    if (!statuses.length || limit < 1) return [];
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM news_queue WHERE site_id = ? AND status IN (?) AND image_ref IS NULL AND image_briefing IS NOT NULL AND image_briefing <> ''
+       AND (error IS NULL OR error NOT LIKE ?) ORDER BY created_at, id LIMIT ?`,
+      [siteId, statuses, finalErrorPrefix.replace(/[%_\\]/g, "\\$&") + "%", limit],
+    );
+    return rows.map(rowToEntry);
+  }
+
   /** Original- und KI-Titel der letzten Queue-Einträge (für den Brave-Abgleich) */
   async recentQueueTitles(siteId: string, limit: number): Promise<string[]> {
     const [rows] = await this.pool.query<RowDataPacket[]>("SELECT title_original, rewritten_title FROM news_queue WHERE site_id = ? ORDER BY id DESC LIMIT ?", [siteId, limit]);

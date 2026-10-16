@@ -104,7 +104,7 @@ Jede Phase endet mit `pnpm check`, `pnpm test`, Changelog-Eintrag, Tag und Push.
 - **Zeitlimits der KI-Kette:** KNP gibt KI-Aufrufen 180 s und ein Token-Limit nach Länge. Prüfen, ob `callLlm` der Seiten das zulässt, sonst Erweiterung der Seite nötig.
 - **Admin-Knopf unter Passenger:** Wird der App-Prozess während eines Laufs beendet, verfällt die Sperre; halb bearbeitete Einträge laufen über die Fehlerwiederholung. Im Test simulieren.
 - **turndown:** Umwandlung von Listen, Überschriften und Links aus dem KI-HTML mit echten Antworten prüfen.
-- **sharp auf Plesk:** Installation der vorgebauten Binärdatei beim NPM install prüfen.
+- **sharp auf Plesk:** Installation der vorgebauten Binärdatei beim NPM install prüfen (sharp 0.35 braucht Node ab 20.9).
 - **Kosten messen:** Das Tageslimit zählt Aufrufe und Bilder, nicht Euro. Ob das reicht, zeigt der Pilot.
 
 ## Verweise

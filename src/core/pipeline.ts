@@ -2,13 +2,13 @@
  * Ein Lauf: Sperre holen, Lauf-Zeile anlegen, Einstellungen und Profile laden, dann die Schritte in der
  * Reihenfolge aus KNP 1.12.1. Vor jedem Schritt prüft ein Heartbeat die Sperre; Status und Protokoll
  * werden vor und nach jedem Schritt gespeichert, damit bei einem Absturz sichtbar bleibt, wo es hing.
- * Bilder folgen mit 0.4.0.
  */
 import type { RunTrigger } from "../store/store";
 import { DailyLimitError, type PipelineContext, type RunState, type StepResult } from "./context";
 import { braveDiscover, createBraveSession } from "./steps/braveDiscover";
 import { classify } from "./steps/classify";
 import { crawl } from "./steps/crawl";
+import { teaserImages } from "./steps/images";
 import { importFeeds } from "./steps/importFeeds";
 import { publish } from "./steps/publish";
 import { retryFailed } from "./steps/retry";
@@ -38,6 +38,7 @@ export const STEPS: Step[] = [
   { name: "Brave-Themensuche", fn: (ctx, run) => braveDiscover(ctx, run) },
   { name: "Crawl", fn: crawl },
   { name: "KI", fn: classify },
+  { name: "Teaserbilder", fn: teaserImages },
 ];
 
 /** Reihenfolge der Profile in diesem Lauf: jeder Lauf beginnt beim nächsten Profil */

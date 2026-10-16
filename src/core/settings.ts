@@ -44,6 +44,8 @@ export const siteSettingsSchema = z.object({
   /** Zeitzone der Seite für Tagesgrenzen und Brave-Zeitplan */
   timezone: z.unknown().transform((v) => (typeof v === "string" && v.trim() && isValidTimeZone(v.trim()) ? v.trim() : "Europe/Berlin")),
   imagesEnabled: bool(false),
+  imageProvider: z.unknown().transform((v) => (v === "openrouter" ? "openrouter" : "fal") as "fal" | "openrouter"),
+  /** Bildmodell; leer oder unpassend = Standard des Anbieters (fal: fal-ai/flux/schnell, OpenRouter: google/gemini-2.5-flash-image) */
   imageModel: str("fal-ai/flux/schnell", 200),
   requireApproval: bool(true),
   postStatus: z.unknown().transform((v) => (v === "draft" ? "draft" : "published") as "draft" | "published"),
@@ -62,7 +64,7 @@ export const siteSettingsSchema = z.object({
   dailyBraveLimit: clampInt(0, 10_000, 200),
   /** Pause zwischen Brave-Anfragen; 1100 ms für den Gratis-Tarif (1 Anfrage/s), bezahlte Tarife vertragen weniger */
   braveDelayMs: clampInt(0, 5000, 1100),
-  /** Tageslimit Bilder je Seite, 0 = ohne Limit (Phase 4) */
+  /** Tageslimit Bilder je Seite, 0 = ohne Limit */
   dailyImageLimit: clampInt(0, 10_000, 20),
   /** Nicht freigegebene Einträge verfallen nach so vielen Tagen (Phase 5) */
   expireDays: clampInt(1, 90, 14),

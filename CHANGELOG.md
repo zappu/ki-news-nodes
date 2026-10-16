@@ -2,6 +2,26 @@
 
 Alle Änderungen am Paket `ki-news-nodes`. Versionen nach SemVer; die Version steht nur in `package.json`.
 
+## [0.4.0] – 16.10.2026
+
+Phase 4 laut `PROJEKTPLAN.md`: Teaserbilder.
+
+### Hinzugefügt
+
+- Schritt Teaserbilder am Ende jedes Laufs: für klassifizierte (mit Freigabe auch freigegebene) Einträge ohne Bild aus dem Bildbriefing der KI ein Bild erzeugen und über `PublishTarget.uploadImage` im Bildspeicher der Seite ablegen; Dateiname `news-teaser-{id}.{endung}`, Alt-Text = KI-Titel. Der Beitrag bekommt das Bild über `imageRef`.
+- Bildanbieter fal.ai (synchron, `landscape_16_9`, Standard `fal-ai/flux/schnell`) und OpenRouter (`modalities`, Standard `google/gemini-2.5-flash-image`), Einstellung `imageProvider`; das Modell passt sich dem Anbieter an.
+- Schlüssel aus der `.env` der Seite über `ctx.imageKeys` (`FAL_KEY`, `OPENROUTER_API_KEY`).
+- Tageslimit für Bilder je Seite (`dailyImageLimit`, Standard 20).
+- Neue Abhängigkeit sharp 0.35 (Node ab 20.9).
+
+### Geändert
+
+- Bildfehler zählen wie in KNP nicht als Fehlversuch und blockieren nichts. Abweichend von KNP wird ein Bild höchstens zweimal versucht (`Bild:` und `Bild (2. Versuch):`), damit ein gestörter Anbieter nicht jeden Lauf Kosten erzeugt.
+
+### Sicherheit
+
+- Bilddaten sind fremde Eingaben: Data-URLs nur als `data:image/(jpeg|png|webp);base64,…` mit strenger Base64-Prüfung, Bild-URLs nur über den geschützten HTTP-Client (SSRF-Schutz, höchstens 3 Weiterleitungen), höchstens 8 MiB, Bildtyp aus den Bytes bestimmt, nur JPEG, PNG und WebP. PNG wird zu JPEG mit Qualität 80.
+
 ## [0.3.0] – 16.10.2026
 
 Phase 3 laut `PROJEKTPLAN.md`: Brave-Themensuche mit Recherche.

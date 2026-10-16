@@ -4,7 +4,7 @@
 import type { HttpClient, HttpRequest, HttpResponse } from "../../src/core/http";
 import type { Category, LlmFn, LlmRequest, PostPayload, PublishTarget } from "../../src/core/types";
 
-type FakeRoute = { status?: number; body: string; headers?: Record<string, string> } | ((req: HttpRequest) => HttpResponse | Promise<HttpResponse>);
+export type FakeRoute = { status?: number; body: string; headers?: Record<string, string> } | ((req: HttpRequest) => HttpResponse | Promise<HttpResponse>);
 
 export function createFakeHttp(routes: Record<string, FakeRoute>, fallback?: (req: HttpRequest) => HttpResponse | null) {
   const calls: HttpRequest[] = [];
@@ -59,7 +59,8 @@ export interface StoredPost extends PostPayload {
 /** Ziel-Adapter im Speicher; `failNextCreate` simuliert einen Abbruch nach dem Anlegen */
 export function createMemoryTarget(categories: Category[] = SITE_CATEGORIES) {
   const posts: StoredPost[] = [];
-  const state = { failNextCreateAfterSave: false, failCreate: null as string | null };
+  const images: { ref: string; buffer: Buffer; mime: string; filename: string; alt: string }[] = [];
+  const state = { failNextCreateAfterSave: false, failCreate: null as string | null, failUpload: null as string | null };
   const target: PublishTarget = {
     async categories() {
       return categories;
@@ -72,6 +73,12 @@ export function createMemoryTarget(categories: Category[] = SITE_CATEGORIES) {
       if (byId) return byId.ref;
       const byText = posts.find((p) => p.title === title && p.html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160) === fingerprint);
       return byText?.ref ?? null;
+    },
+    async uploadImage(file) {
+      if (state.failUpload) throw new Error(state.failUpload);
+      const ref = "img-" + (images.length + 1);
+      images.push({ ref, ...file });
+      return { ref, url: "/media/news/" + file.filename };
     },
     async createPost(post) {
       if (state.failCreate) throw new Error(state.failCreate);
@@ -89,7 +96,7 @@ export function createMemoryTarget(categories: Category[] = SITE_CATEGORIES) {
       Object.assign(p, post, { ref, completed: p.completed + 1 });
     },
   };
-  return { target, posts, state };
+  return { target, posts, images, state };
 }
 
 export function rssXml(title: string, items: { title: string; link: string; guid?: string; date?: string }[]): string {
