@@ -12,17 +12,18 @@ News-Pipeline für Thomas' Node-Seiten: Nachbau des WordPress-Plugins KI News Pu
 
 ## Stand
 
-Version 0.4.0 (Phase 4): Pipeline-Kern mit RSS-Import, Brave-Themensuche mit Recherche, Crawl, KI-Klassifikation und Veröffentlichung über die Adapter-Schnittstelle, Sperre je Seite, Laufprotokoll in `news_runs`, Fehlerwiederholung, Zeitbudget, Profile reihum, Artikelziel pro Tag, Tageslimit für KI-Aufrufe, Teaserbilder über fal.ai oder OpenRouter, Lauf per `runCli` mit Intervallprüfung. Es fehlen noch der Adapter für die SSR-Seiten und der Admin-Bereich (Phase 5).
+Version 0.5.0 (Phase 5): Pipeline-Kern mit Wartung, RSS-Import, Brave-Themensuche mit Recherche, Crawl, KI-Klassifikation, Teaserbildern und Veröffentlichung über die Adapter-Schnittstelle; Admin-Dienst und React-Seiten unter `src/admin`; in smartwatch-fitnesstracker.de eingebaut (ausgeschaltet, Einbau siehe `docs/EINBAU.md`). Als Nächstes Phase 6: Pilot live mit den Profilen „Neuheiten“ und „Updates und Funktionen“.
 
 ## Aufbau
 
 - `src/index.ts`: öffentliche Schnittstelle, `VERSION` aus `package.json`.
-- `src/core/`: Kern ohne Seitenbezug. `context.ts` (Kontext und Laufzustand), `time.ts` (Tagesgrenzen in der Zeitzone der Seite), `types.ts` (Queue-Eintrag, Ports `LlmFn` und `PublishTarget`), `settings.ts` (Einstellungen der Seite und der Profile mit zod und KNP-Standardwerten), `prompts.ts` (Wortlaut aus `docs/uebergabe/03`), `http.ts` (geschützter HTTP-Client), `feeds.ts`, `fetchPage.ts`, `html.ts` (Positivliste, Textextraktion), `urls.ts`, `json.ts`, `text.ts`, `lengths.ts`, `steps/` (ein Schritt je Datei, Reihenfolge in `pipeline.ts`: Wiederholung, Veröffentlichung, RSS-Import, Brave-Themensuche, Crawl und Recherche, KI, Teaserbilder), `images.ts` (Bildanbieter, Prüfung, Umwandlung mit sharp), `brave.ts` (Brave-Suche, Slots, Wortvergleich), `pipeline.ts` (Sperre, Laufprotokoll, Tageslimit).
-- `src/store/`: `migrations.ts` (nur neue Versionen anhängen) und `store.ts` (`NewsStore`, MySQL/MariaDB in UTC).
+- `src/core/`: Kern ohne Seitenbezug. `context.ts` (Kontext und Laufzustand), `time.ts` (Tagesgrenzen in der Zeitzone der Seite), `types.ts` (Queue-Eintrag, Ports `LlmFn` und `PublishTarget`), `settings.ts` (Einstellungen der Seite und der Profile mit zod und KNP-Standardwerten), `prompts.ts` (Wortlaut aus `docs/uebergabe/03`), `http.ts` (geschützter HTTP-Client), `feeds.ts`, `fetchPage.ts`, `html.ts` (Positivliste, Textextraktion), `urls.ts`, `json.ts`, `text.ts`, `lengths.ts`, `steps/` (ein Schritt je Datei, Reihenfolge in `pipeline.ts`: Wartung, Wiederholung, Veröffentlichung, RSS-Import, Brave-Themensuche, Crawl und Recherche, KI, Teaserbilder), `images.ts` (Bildanbieter, Prüfung, Umwandlung mit sharp), `brave.ts` (Brave-Suche, Slots, Wortvergleich), `pipeline.ts` (Sperre, Laufprotokoll, Tageslimit).
+- `src/admin/`: `service.ts` (`createNewsAdmin`, `newsInputs`, `NEWS_QUERIES`/`NEWS_MUTATIONS`; die Seite verbindet jede Funktion in einer eigenen Router-Datei mit ihrem `adminProcedure`, Entscheidung 0005), `ui/NewsAdmin.tsx` (React-Seiten, nur Theme-Klassen, vom Server nur Typen).
+- `src/store/`: `migrations.ts` (nur neue Versionen anhängen) und `store.ts` (`NewsStore`, MySQL/MariaDB in UTC; `news_post_links` für die Idempotenz).
 - `src/cli.ts`: `runCli(argv, build)` für das Cron-Skript der Seite.
 - `test/`: Vitest. `helpers/fakes.ts` mit Attrappen für HTTP, KI und Zielseite, `helpers/db.ts` für die Testdatenbank.
 
-Das Paket wird als TypeScript-Quelle ausgeliefert (`exports` zeigt auf `src/index.ts`); die Seite bündelt es beim Build.
+Das Paket wird als TypeScript-Quelle ausgeliefert (`exports` zeigt auf `src/index.ts`, `./admin`, `./admin/ui`); die Seite importiert es über den Alias `@ki-news` und bündelt es beim Build. Einbau Schritt für Schritt: `docs/EINBAU.md`. Neue Admin-Funktion = Eintrag in `NEWS_QUERIES`/`NEWS_MUTATIONS` plus Hinweis im Changelog, dass die Router-Datei der Seiten eine Zeile braucht.
 
 ## Befehle
 

@@ -2,6 +2,23 @@
 
 Alle Änderungen am Paket `ki-news-nodes`. Versionen nach SemVer; die Version steht nur in `package.json`.
 
+## [0.5.0] – 16.10.2026
+
+Phase 5 laut `PROJEKTPLAN.md`: Admin-Bereich und Einbau in die Pilotseite smartwatch-fitnesstracker.de.
+
+### Hinzugefügt
+
+- Admin-Dienst `createNewsAdmin` (`ki-news-nodes/admin`) mit Eingabe-Schemas `newsInputs` für die Admin-Prozeduren der Seite: Übersicht, Queue mit Filtern und Detailansicht, Freigeben, Ablehnen, Wiederholen und Löschen (auch mehrere), Einstellungen, Profile anlegen, ändern und löschen, Kategorien der Seite, Laufprotokoll, „Lauf jetzt starten“, „Brave-Themen jetzt suchen“, „Feed testen“. Listen der Funktionen in `NEWS_QUERIES` und `NEWS_MUTATIONS`.
+- React-Seiten `NewsAdmin` (`ki-news-nodes/admin/ui`) mit den Reitern Queue, Profile, Einstellungen und Protokoll; nur Klassen des Themes der Seite, vom Server nur Typen. `react` ist Peer-Abhängigkeit.
+- Schritt Wartung am Anfang jedes Laufs, einmal am Tag ab `maintenanceHour` (Standard 8 Uhr): nicht freigegebene Einträge laufen nach `expireDays` (Standard 14) ab, liegengebliebene ebenso; bei wartenden Artikeln eine Mail über `ctx.notify` mit Link `ctx.adminUrl` (Einstellung `notifyWaiting`, Standard an).
+- Tabelle `news_post_links` (Migration 3): Zuordnung Queue-Eintrag zu Beitrag direkt nach dem Anlegen, vor jedem Veröffentlichen geprüft. Ein abgebrochener Lauf legt so keinen Beitrag doppelt an, auch wenn die Seite keine Herkunftsspalte hat.
+- Einbauanleitung `docs/EINBAU.md`, Entscheidung 0005 (Admin im Paket, Router in der Seite, Wartung im Lauf).
+
+### Geändert
+
+- `createNewsStore` setzt die Sitzungszeitzone UTC für den eigenen Pool.
+- `package.json` mit `files` (nur `src`, Changelog, Einbauanleitung) und Exporten `./admin` und `./admin/ui`.
+
 ## [0.4.0] – 16.10.2026
 
 Phase 4 laut `PROJEKTPLAN.md`: Teaserbilder.

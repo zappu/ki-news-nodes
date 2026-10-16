@@ -89,7 +89,7 @@ Menüpunkt „News“ mit den Reitern Queue, Profile, Einstellungen, Schreibstil
 | 2 | 0.2.0 | Sperre, `news_runs` mit Status und Protokoll, Fehlerwiederholung mit drei Versuchen, Zeitbudget, Idempotenz, Profile reihum, Tageslimit | Abgebrochene und doppelte Läufe richten keinen Schaden an, alle Fehlerpfade getestet |
 | 3 | 0.3.0 | Brave-Themensuche mit Slots, Auswahl, bekannten Überschriften, Wortvergleich, Recherche | Brave-Themen entstehen nach Zeitplan und werden recherchiert |
 | 4 | 0.4.0 | Teaserbilder über fal.ai, Prüfung, Umwandlung, Ablage über den Adapter | Beiträge mit Teaserbild, Bildfehler blockieren nichts |
-| 5 | 0.5.0 | Adapter für die SSR-Seiten (createPost, turndown, Kategorien, Bilder), Admin-Bereich News, Dashboard-Kachel, Mail bei wartenden Artikeln, Ablauf nach 14 Tagen, Cron-Skript, Einbau in den Build von smartwatch-fitnesstracker.de | Pilotseite mit vollständigem News-Bereich auf der Testinstallation |
+| 5 | 0.5.0 | Adapter für die SSR-Seiten (createPost, turndown, Kategorien, Bilder), Admin-Bereich News, Dashboard-Kachel, Mail bei wartenden Artikeln, Ablauf nach 14 Tagen, Cron-Skript, Einbau in den Build von smartwatch-fitnesstracker.de | Pilotseite mit vollständigem News-Bereich, ausgeschaltet auf der Live-Seite (F23, Entscheidung 0005); erprobt mit lokaler Kopie und Testdatenbank |
 | 6 | 0.6.0 | Pilot live: Profile „Neuheiten“ und „Updates und Funktionen“ einrichten, Feeds prüfen, Plesk-Cron, zwei Wochen Betrieb mit Freigabe | Stabiler Livebetrieb, Korrekturen aus dem Pilot |
 | 7 | 0.7.0 | Schreibstile mit Ableiten und Probetext | Stil je Profil wählbar |
 | 8 | 1.0.0 | Rollout auf die übrigen SSR-Seiten, Anleitung für den Einbau | Alle vorgesehenen Seiten mit News-Bereich |
@@ -100,16 +100,16 @@ Jede Phase endet mit `pnpm check`, `pnpm test`, Changelog-Eintrag, Tag und Push.
 
 - **Hersteller-Feeds:** Ob Garmin, Samsung, Apple und andere RSS-Feeds mit lesbaren Meldungen anbieten und die Übernahme erlauben, ist ungeprüft. Ohne sie lebt der Pilot fast nur von Brave.
 - **Brave-Tarif (geklärt 16.10.2026):** 5 US-Dollar je 1000 Anfragen, 50 Anfragen pro Sekunde. Eine Seite mit zwei Profilen, je fünf Suchbegriffen und drei Themen am Tag braucht grob 40 Anfragen täglich (etwa 6 Dollar im Monat). Schutz: `dailyBraveLimit` je Seite (Standard 200), Pause `braveDelayMs` kann auf 100 bis 200 ms sinken.
-- **Bündeln der Git-Abhängigkeit:** Der Build der Seiten nutzt `--packages=external`. Das Paket muss davon ausgenommen werden; Lösung in Phase 5 testen.
+- **Bündeln der Git-Abhängigkeit (gelöst in 0.5.0):** Import über den Alias `@ki-news` statt über den Paketnamen, so bündelt esbuild das Paket trotz `--packages=external`. Das Paket steht unter devDependencies, Plesk holt das private Repo nie (mit gesperrtem GitHub simuliert). Siehe `docs/EINBAU.md`.
 - **Zeitlimits der KI-Kette:** KNP gibt KI-Aufrufen 180 s und ein Token-Limit nach Länge. Prüfen, ob `callLlm` der Seiten das zulässt, sonst Erweiterung der Seite nötig.
 - **Admin-Knopf unter Passenger:** Wird der App-Prozess während eines Laufs beendet, verfällt die Sperre; halb bearbeitete Einträge laufen über die Fehlerwiederholung. Im Test simulieren.
 - **turndown:** Umwandlung von Listen, Überschriften und Links aus dem KI-HTML mit echten Antworten prüfen.
-- **sharp auf Plesk:** Installation der vorgebauten Binärdatei beim NPM install prüfen (sharp 0.35 braucht Node ab 20.9).
+- **sharp auf Plesk:** In der Simulation mit `omit=dev` und `ignore-scripts` installiert und lauffähig (vorgebaute Binärdatei als optionales Paket, Node ab 20.9). Auf dem echten Server beim ersten Update prüfen.
 - **Kosten messen:** Das Tageslimit zählt Aufrufe und Bilder, nicht Euro. Ob das reicht, zeigt der Pilot.
 
 ## Verweise
 
 - `GLOSSAR.md`: Begriffe.
-- `docs/entscheidungen/`: 0001 Paket statt Kopie je Seite, 0002 Laufsteuerung über Plesk-Cron-Skript, 0003 HTML-Prompts und Markdown im Adapter, 0004 Kategorien aus der Zielseite.
+- `docs/entscheidungen/`: 0001 Paket statt Kopie je Seite, 0002 Laufsteuerung über Plesk-Cron-Skript, 0003 HTML-Prompts und Markdown im Adapter, 0004 Kategorien aus der Zielseite, 0005 Admin im Paket, Router in der Seite, Wartung im Lauf.
 - `docs/uebergabe/`: Übergabepaket aus KNP 1.12.1 (Spezifikation, Prompts, Integrationen, Erfahrungen, Umsetzungsvorschlag).
 - Referenz-Code: Repo `zappu/ki-news-publisher` (nur lesen), Pilot: Repo `zappu/smartwatch-fitnesstracker.de`.
