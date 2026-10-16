@@ -19,6 +19,10 @@ Phase 5 laut `PROJEKTPLAN.md`: Admin-Bereich und Einbau in die Pilotseite smartw
 - `createNewsStore` setzt die Sitzungszeitzone UTC für den eigenen Pool.
 - `package.json` mit `files` (nur `src`, Changelog, Einbauanleitung) und Exporten `./admin` und `./admin/ui`.
 
+### Behoben
+
+- Migrationen sind wiederholbar: Bricht ein Prozess zwischen einer Tabellenänderung und dem Eintrag in `news_migrations` ab, gelten „Tabelle, Spalte oder Schlüssel gibt es schon“ beim nächsten Start als erledigt, statt jede weitere Migration zu blockieren (MySQL führt DDL ohne Transaktion aus).
+
 ## [0.4.0] – 16.10.2026
 
 Phase 4 laut `PROJEKTPLAN.md`: Teaserbilder.

@@ -29,6 +29,15 @@ describe("Migrationen", () => {
   it("laufen nur einmal", async () => {
     expect(await store.migrate()).toEqual([]);
   });
+
+  it("überstehen einen Abbruch zwischen Änderung und Eintrag", async () => {
+    // Zustand nach Abbruch: Spalten und Tabellen sind da, die Einträge fehlen
+    await store.pool.query("DELETE FROM news_migrations WHERE version >= 2");
+    expect(await store.migrate()).toEqual([2, 3]);
+    await store.pool.query("DROP TABLE news_migrations");
+    expect(await store.migrate()).toEqual([1, 2, 3]);
+    expect(await store.migrate()).toEqual([]);
+  });
 });
 
 describe("Einstellungen und Profile", () => {

@@ -3,7 +3,7 @@
  * Neue Änderungen immer als neue Version anhängen, nie eine bestehende ändern.
  * Alle Zeiten in UTC.
  */
-import type { Pool } from "mysql2/promise";
+import type { Pool, PoolConnection } from "mysql2/promise";
 
 export interface Migration {
   version: number;
@@ -136,6 +136,22 @@ export const MIGRATIONS: Migration[] = [
   },
 ];
 
+/**
+ * MySQL führt DDL ohne Transaktion aus: Bricht ein Prozess zwischen `ALTER TABLE` und dem Eintrag in
+ * `news_migrations` ab, wäre die Spalte schon da und jede weitere Migration scheiterte. Deshalb gelten
+ * „Tabelle/Spalte/Schlüssel gibt es schon“ als erledigt.
+ */
+const ALREADY_DONE = new Set([1050, 1060, 1061]); // ER_TABLE_EXISTS_ERROR, ER_DUP_FIELDNAME, ER_DUP_KEYNAME
+
+async function runIdempotent(conn: PoolConnection, stmt: string): Promise<void> {
+  try {
+    await conn.query(stmt);
+  } catch (e) {
+    if (ALREADY_DONE.has((e as { errno?: number }).errno ?? 0)) return;
+    throw e;
+  }
+}
+
 /** Führt fehlende Migrationen aus. Mehrere Prozesse gleichzeitig sind durch eine Datenbank-Sperre geschützt. */
 export async function migrate(pool: Pool): Promise<number[]> {
   const conn = await pool.getConnection();
@@ -149,7 +165,7 @@ export async function migrate(pool: Pool): Promise<number[]> {
       const applied: number[] = [];
       for (const m of MIGRATIONS) {
         if (done.has(m.version)) continue;
-        for (const stmt of m.sql) await conn.query(stmt);
+        for (const stmt of m.sql) await runIdempotent(conn, stmt);
         await conn.query("INSERT INTO news_migrations (version, name, applied_at) VALUES (?, ?, UTC_TIMESTAMP())", [m.version, m.name]);
         applied.push(m.version);
       }
