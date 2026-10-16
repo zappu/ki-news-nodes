@@ -113,6 +113,14 @@ export const MIGRATIONS: Migration[] = [
       ) ${T}`,
     ],
   },
+  {
+    version: 2,
+    name: "Zeitpunkt des KI-Rewrites",
+    sql: [
+      "ALTER TABLE news_queue ADD COLUMN classified_at DATETIME NULL AFTER retry_status",
+      "ALTER TABLE news_queue ADD KEY idx_news_queue_classified (site_id, profile_id, classified_at)",
+    ],
+  },
 ];
 
 /** Führt fehlende Migrationen aus. Mehrere Prozesse gleichzeitig sind durch eine Datenbank-Sperre geschützt. */

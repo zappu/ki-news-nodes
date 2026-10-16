@@ -47,6 +47,8 @@ export interface QueueEntry {
   error: string | null;
   attempts: number;
   retryStatus: QueueStatus | null;
+  /** Zeitpunkt des KI-Rewrites (für das Artikelziel pro Tag) */
+  classifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

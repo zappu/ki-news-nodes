@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { LENGTH_TIER_NAMES, type LengthTier } from "./lengths";
 import { DEFAULT_AI_DISCLOSURE } from "./prompts";
+import { isValidTimeZone } from "./time";
 
 const clampInt = (min: number, max: number, def: number) =>
   z
@@ -40,6 +41,8 @@ export type CronInterval = keyof typeof CRON_INTERVALS;
 
 export const siteSettingsSchema = z.object({
   language: str("Deutsch", 100),
+  /** Zeitzone der Seite für Tagesgrenzen und Brave-Zeitplan */
+  timezone: z.unknown().transform((v) => (typeof v === "string" && v.trim() && isValidTimeZone(v.trim()) ? v.trim() : "Europe/Berlin")),
   imagesEnabled: bool(false),
   imageModel: str("fal-ai/flux/schnell", 200),
   requireApproval: bool(true),

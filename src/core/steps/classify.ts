@@ -2,7 +2,7 @@
  * Schritt KI-Klassifikation und Rewrite: ein KI-Aufruf pro Eintrag erledigt Relevanzprüfung, Text,
  * Teaser, SEO-Felder, Kategorie, Bildbriefing und Tags (Status `crawled` → `classified` oder `rejected`).
  */
-import type { PipelineContext, RunState, StepResult } from "../context";
+import { DailyLimitError, type PipelineContext, type RunState, type StepResult } from "../context";
 import { sanitizeArticleHtml } from "../html";
 import { extractJson } from "../json";
 import { classifyMaxTokens, pickLength } from "../lengths";
@@ -85,14 +85,23 @@ export function buildClassifyRequest(entry: QueueEntry, profile: Profile, catego
 }
 
 export async function classify(ctx: PipelineContext, run: RunState): Promise<StepResult> {
-  const entries = await ctx.store.takeByStatus(ctx.siteId, ["crawled"], run.settings.maxPerRun);
-  if (!entries.length) return { summary: "KI: keine Einträge zum Schreiben." };
-  if (!ctx.llm) return { summary: `KI: ${entries.length} Einträge warten, aber es ist kein KI-Schlüssel hinterlegt.` };
+  // Artikelziel pro Tag je Profil: wer es erreicht hat, wartet bis morgen
+  const today = await ctx.store.countClassifiedSince(ctx.siteId, run.dayStart);
+  const remaining = new Map<number, number>();
+  for (const p of run.profiles.values()) remaining.set(p.id, p.config.dailyTarget - (today.get(p.id) ?? 0));
+  const full = [...remaining].filter(([, n]) => n <= 0).map(([id]) => id);
+
+  const entries = await ctx.store.takeFair(ctx.siteId, ["crawled"], run.settings.maxPerRun, run.activeProfileIds, { excludeProfileIds: full });
+  const atTarget = full.length ? ` ${full.length} Profil${full.length === 1 ? " hat" : "e haben"} das Tagesziel erreicht.` : "";
+  if (!entries.length) return { summary: `KI: keine Einträge zum Schreiben.${atTarget}` };
+  if (!run.llm) return { summary: `KI: ${entries.length} Einträge warten, aber es ist kein KI-Schlüssel hinterlegt.` };
 
   let siteCategories: Category[] | null = null;
   let written = 0;
   let rejected = 0;
   let failed = 0;
+  let waiting = 0;
+  let limitHit = "";
   for (const entry of entries) {
     const profile = run.profiles.get(entry.profileId);
     if (!profile) {
@@ -100,11 +109,15 @@ export async function classify(ctx: PipelineContext, run: RunState): Promise<Ste
       rejected++;
       continue;
     }
+    if ((remaining.get(profile.id) ?? 0) <= 0) {
+      waiting++;
+      continue;
+    }
     try {
       siteCategories ??= await ctx.target.categories();
       const categories = categoriesForProfile(profile, siteCategories);
       const req = buildClassifyRequest(entry, profile, categories, run);
-      const raw = await ctx.llm({ system: req.system, user: req.user, maxTokens: req.maxTokens, timeoutMs: LLM_TIMEOUT_MS, purpose: "classify" });
+      const raw = await run.llm({ system: req.system, user: req.user, maxTokens: req.maxTokens, timeoutMs: LLM_TIMEOUT_MS, purpose: "classify" });
       const res = parseClassifyResponse(raw, run.settings);
       if (!res.relevant) {
         await ctx.store.updateEntry(entry.id, { status: "rejected", relevance: false, error: res.reason ?? null });
@@ -122,14 +135,21 @@ export async function classify(ctx: PipelineContext, run: RunState): Promise<Ste
         categoryKey: res.categoryKey || null,
         imageBriefing: res.imageBriefing || null,
         tags: res.tags ?? [],
+        classifiedAt: run.now(),
         error: null,
       });
+      remaining.set(profile.id, (remaining.get(profile.id) ?? 0) - 1);
       written++;
     } catch (e) {
+      if (e instanceof DailyLimitError) {
+        limitHit = ` ${e.message}.`;
+        break;
+      }
       failed++;
       const status = await ctx.store.failEntry(entry, "crawled", `KI: ${(e as Error).message}`);
       run.logger.log(`KI: Eintrag ${entry.id} ${status === "rejected" ? "aussortiert" : "fehlgeschlagen"}: ${(e as Error).message.slice(0, 300)}`);
     }
   }
-  return { summary: `KI: ${written} geschrieben, ${rejected} nicht relevant, ${failed} mit Fehler (von ${entries.length}).` };
+  const wait = waiting ? `, ${waiting} warten aufs nächste Tagesziel` : "";
+  return { summary: `KI: ${written} geschrieben, ${rejected} nicht relevant, ${failed} mit Fehler${wait} (von ${entries.length}).${atTarget}${limitHit}` };
 }

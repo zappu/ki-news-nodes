@@ -10,6 +10,31 @@ import { migrate } from "./migrations";
 
 export const MAX_ATTEMPTS = 3;
 
+export interface TakeOptions {
+  profileIds?: number[];
+  excludeProfileIds?: number[];
+  kind?: SourceKind;
+}
+
+export type RunTrigger = "cron" | "manual";
+export type RunStatus = "running" | "completed" | "failed" | "locked";
+
+export interface RunRow {
+  id: number;
+  siteId: string;
+  trigger: RunTrigger;
+  status: RunStatus;
+  step: string | null;
+  message: string | null;
+  log: string[];
+  startedAt: Date;
+  updatedAt: Date;
+  finishedAt: Date | null;
+}
+
+/** Wie viele Läufe je Seite aufbewahrt werden */
+export const KEEP_RUNS = 500;
+
 /** Felder, die beim Anlegen eines Queue-Eintrags gesetzt werden */
 export interface NewEntry {
   siteId: string;
@@ -46,6 +71,7 @@ export type EntryPatch = Partial<
     | "error"
     | "attempts"
     | "retryStatus"
+    | "classifiedAt"
   >
 >;
 
@@ -69,6 +95,7 @@ const COLUMN: Record<keyof EntryPatch, string> = {
   error: "error",
   attempts: "attempts",
   retryStatus: "retry_status",
+  classifiedAt: "classified_at",
 };
 
 function toDb(key: keyof EntryPatch, value: unknown): unknown {
@@ -119,6 +146,7 @@ function rowToEntry(r: RowDataPacket): QueueEntry {
     error: r.error,
     attempts: r.attempts,
     retryStatus: retry,
+    classifiedAt: r.classified_at ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -250,23 +278,63 @@ export class NewsStore {
   }
 
   /** Älteste Einträge mit einem der Status, höchstens `limit` */
-  async takeByStatus(siteId: string, statuses: QueueStatus[], limit: number, opts: { profileIds?: number[]; kind?: SourceKind } = {}): Promise<QueueEntry[]> {
+  async takeByStatus(siteId: string, statuses: QueueStatus[], limit: number, opts: TakeOptions = {}): Promise<QueueEntry[]> {
     if (!statuses.length || limit < 1) return [];
-    if (opts.profileIds && !opts.profileIds.length) return [];
+    const where = this.takeWhere(siteId, statuses, opts);
+    if (!where) return [];
+    const [rows] = await this.pool.query<RowDataPacket[]>(`SELECT * FROM news_queue WHERE ${where.sql} ORDER BY created_at, id LIMIT ?`, [...where.params, limit]);
+    return rows.map(rowToEntry);
+  }
+
+  /**
+   * Wie `takeByStatus`, aber reihum über die Profile: erst der älteste Eintrag jedes Profils, dann der
+   * zweitälteste usw. `profileOrder` bestimmt, welches Profil in jeder Runde zuerst drankommt; Profile,
+   * die dort fehlen (z. B. inaktive), kommen danach.
+   */
+  async takeFair(siteId: string, statuses: QueueStatus[], limit: number, profileOrder: number[], opts: TakeOptions = {}): Promise<QueueEntry[]> {
+    if (!statuses.length || limit < 1) return [];
+    const where = this.takeWhere(siteId, statuses, opts);
+    if (!where) return [];
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM (SELECT q.*, ROW_NUMBER() OVER (PARTITION BY profile_id ORDER BY created_at, id) AS rr FROM news_queue q WHERE ${where.sql}) t WHERE rr <= ? ORDER BY rr, created_at, id`,
+      [...where.params, limit],
+    );
+    const rank = (pid: number) => {
+      const i = profileOrder.indexOf(pid);
+      return i < 0 ? profileOrder.length + pid : i;
+    };
+    return rows
+      .sort((a, b) => a.rr - b.rr || rank(a.profile_id) - rank(b.profile_id))
+      .slice(0, limit)
+      .map(rowToEntry);
+  }
+
+  private takeWhere(siteId: string, statuses: QueueStatus[], opts: TakeOptions): { sql: string; params: unknown[] } | null {
+    if (opts.profileIds && !opts.profileIds.length) return null;
     const params: unknown[] = [siteId, statuses];
-    let sql = "SELECT * FROM news_queue WHERE site_id = ? AND status IN (?)";
+    let sql = "site_id = ? AND status IN (?)";
     if (opts.profileIds) {
       sql += " AND profile_id IN (?)";
       params.push(opts.profileIds);
+    }
+    if (opts.excludeProfileIds?.length) {
+      sql += " AND profile_id NOT IN (?)";
+      params.push(opts.excludeProfileIds);
     }
     if (opts.kind) {
       sql += opts.kind === "brave" ? " AND feed_url = ?" : " AND feed_url <> ?";
       params.push(BRAVE_FEED_MARK);
     }
-    sql += " ORDER BY created_at, id LIMIT ?";
-    params.push(limit);
-    const [rows] = await this.pool.query<RowDataPacket[]>(sql, params);
-    return rows.map(rowToEntry);
+    return { sql, params };
+  }
+
+  /** Anzahl der seit `since` neu geschriebenen Einträge je Profil (für das Artikelziel pro Tag) */
+  async countClassifiedSince(siteId: string, since: Date): Promise<Map<number, number>> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      "SELECT profile_id, COUNT(*) AS n FROM news_queue WHERE site_id = ? AND classified_at >= ? AND relevance = 1 GROUP BY profile_id",
+      [siteId, since],
+    );
+    return new Map(rows.map((r) => [r.profile_id as number, Number(r.n)]));
   }
 
   async updateEntry(id: number, patch: EntryPatch): Promise<void> {
@@ -331,11 +399,176 @@ export class NewsStore {
     return out;
   }
 
+  // ─── Läufe ───────────────────────────────────────────────────────────────────────────────────
+
+  async startRun(siteId: string, trigger: RunTrigger, status: RunStatus = "running", message: string | null = null): Promise<number> {
+    const now = this.now();
+    const [res] = await this.pool.query<ResultSetHeader>(
+      "INSERT INTO news_runs (site_id, trigger_kind, status, step, message, log, started_at, updated_at, finished_at) VALUES (?, ?, ?, NULL, ?, '[]', ?, ?, ?)",
+      [siteId, trigger, status, message, now, now, status === "running" ? null : now],
+    );
+    return res.insertId;
+  }
+
+  async updateRun(id: number, patch: { status?: RunStatus; step?: string | null; message?: string | null; log?: string[]; finished?: boolean }): Promise<void> {
+    const sets: string[] = ["updated_at = ?"];
+    const vals: unknown[] = [this.now()];
+    if (patch.status !== undefined) {
+      sets.push("status = ?");
+      vals.push(patch.status);
+    }
+    if (patch.step !== undefined) {
+      sets.push("step = ?");
+      vals.push(patch.step);
+    }
+    if (patch.message !== undefined) {
+      sets.push("message = ?");
+      vals.push(patch.message === null ? null : clipError(patch.message));
+    }
+    if (patch.log !== undefined) {
+      sets.push("log = ?");
+      vals.push(JSON.stringify(patch.log));
+    }
+    if (patch.finished) {
+      sets.push("finished_at = ?");
+      vals.push(this.now());
+    }
+    await this.pool.query(`UPDATE news_runs SET ${sets.join(", ")} WHERE id = ?`, [...vals, id]);
+  }
+
+  async getRun(id: number): Promise<RunRow | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT * FROM news_runs WHERE id = ?", [id]);
+    return rows[0] ? rowToRun(rows[0]) : null;
+  }
+
+  async listRuns(siteId: string, limit = 20): Promise<RunRow[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT * FROM news_runs WHERE site_id = ? ORDER BY started_at DESC, id DESC LIMIT ?", [siteId, limit]);
+    return rows.map(rowToRun);
+  }
+
+  /** Beginn des letzten Laufs, der tatsächlich gelaufen ist (gesperrte zählen nicht) */
+  async lastRunStart(siteId: string): Promise<Date | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT started_at FROM news_runs WHERE site_id = ? AND status <> 'locked' ORDER BY started_at DESC, id DESC LIMIT 1", [siteId]);
+    return rows[0]?.started_at ?? null;
+  }
+
+  /**
+   * Läufe, die noch als `running` stehen, obwohl wir die Sperre halten: Ihr Prozess ist abgebrochen.
+   * Sie werden als `failed` markiert, der letzte Schritt bleibt sichtbar.
+   */
+  async markStaleRuns(siteId: string, exceptId: number): Promise<number> {
+    const [res] = await this.pool.query<ResultSetHeader>(
+      "UPDATE news_runs SET status = 'failed', message = CONCAT('Abgebrochen (Prozess beendet) in Schritt ', COALESCE(step, '?')), finished_at = ?, updated_at = ? WHERE site_id = ? AND status = 'running' AND id <> ?",
+      [this.now(), this.now(), siteId, exceptId],
+    );
+    return res.affectedRows;
+  }
+
+  /** Nur die neuesten `keep` Läufe je Seite behalten */
+  async pruneRuns(siteId: string, keep = KEEP_RUNS): Promise<number> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT id FROM news_runs WHERE site_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?", [siteId, keep]);
+    const border = rows[0]?.id;
+    if (!border) return 0;
+    const [res] = await this.pool.query<ResultSetHeader>("DELETE FROM news_runs WHERE site_id = ? AND id <= ?", [siteId, border]);
+    return res.affectedRows;
+  }
+
+  // ─── Zähler für Tageslimits ──────────────────────────────────────────────────────────────────
+
+  async getUsage(siteId: string, day: string, kind: string): Promise<number> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT count FROM news_usage WHERE site_id = ? AND day = ? AND kind = ?", [siteId, day, kind]);
+    return rows[0] ? Number(rows[0].count) : 0;
+  }
+
+  async incrementUsage(siteId: string, day: string, kind: string, by = 1): Promise<void> {
+    await this.pool.query("INSERT INTO news_usage (site_id, day, kind, count) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE count = count + VALUES(count)", [siteId, day, kind, by]);
+  }
+
+  // ─── Zustand (kleine Schlüssel-Wert-Paare je Seite) ──────────────────────────────────────────
+
+  async getState(siteId: string, key: string): Promise<string | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT v FROM news_state WHERE site_id = ? AND k = ?", [siteId, key]);
+    return rows[0]?.v ?? null;
+  }
+
+  async setState(siteId: string, key: string, value: string | null): Promise<void> {
+    await this.pool.query("INSERT INTO news_state (site_id, k, v, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = VALUES(updated_at)", [siteId, key, value, this.now()]);
+  }
+
+  // ─── Lauf-Sperre ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Sperre je Seite über `GET_LOCK` auf einer eigenen Verbindung (wie KNP 1.7.3). Bricht der Prozess ab,
+   * schließt die Datenbank die Verbindung und die Sperre ist frei. Liefert null, wenn ein anderer Lauf
+   * sie hält.
+   */
+  async acquireRunLock(siteId: string): Promise<RunLock | null> {
+    const name = lockName(siteId);
+    const conn = await this.pool.getConnection();
+    try {
+      const [rows] = await conn.query<RowDataPacket[]>("SELECT GET_LOCK(?, 0) AS ok", [name]);
+      if (rows[0]?.ok !== 1) {
+        conn.release();
+        return null;
+      }
+    } catch (e) {
+      conn.release();
+      throw e;
+    }
+    let released = false;
+    return {
+      async stillHeld() {
+        if (released) return false;
+        try {
+          const [rows] = await conn.query<RowDataPacket[]>("SELECT IS_USED_LOCK(?) = CONNECTION_ID() AS mine", [name]);
+          return rows[0]?.mine === 1;
+        } catch {
+          return false;
+        }
+      },
+      async release() {
+        if (released) return;
+        released = true;
+        try {
+          await conn.query("SELECT RELEASE_LOCK(?)", [name]);
+        } finally {
+          conn.release();
+        }
+      },
+    };
+  }
+
   private async bulk(siteId: string, ids: number[], set: string, where: string): Promise<number> {
     if (!ids.length) return 0;
     const [res] = await this.pool.query<ResultSetHeader>(`UPDATE news_queue SET ${set}, updated_at = ? WHERE site_id = ? AND id IN (?) AND ${where}`, [this.now(), siteId, ids]);
     return res.affectedRows;
   }
+}
+
+export interface RunLock {
+  /** Heartbeat: hält diese Verbindung die Sperre noch? */
+  stillHeld(): Promise<boolean>;
+  release(): Promise<void>;
+}
+
+/** Name der Sperre je Seite; MySQL erlaubt höchstens 64 Zeichen */
+function lockName(siteId: string): string {
+  return ("news_run_" + siteId).slice(0, 64);
+}
+
+function rowToRun(r: RowDataPacket): RunRow {
+  return {
+    id: r.id,
+    siteId: r.site_id,
+    trigger: r.trigger_kind === "manual" ? "manual" : "cron",
+    status: r.status as RunStatus,
+    step: r.step,
+    message: r.message,
+    log: parseJson<string[]>(r.log, []),
+    startedAt: r.started_at,
+    updatedAt: r.updated_at,
+    finishedAt: r.finished_at,
+  };
 }
 
 /** Store aus einer Datenbank-URL (eigener kleiner Pool in UTC) oder aus einem vorhandenen Pool */

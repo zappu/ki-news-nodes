@@ -2,6 +2,26 @@
 
 Alle Änderungen am Paket `ki-news-nodes`. Versionen nach SemVer; die Version steht nur in `package.json`.
 
+## [0.2.0] – 16.10.2026
+
+Phase 2 laut `PROJEKTPLAN.md`: Laufsteuerung und Grenzen.
+
+### Hinzugefügt
+
+- Lauf-Sperre je Seite über `GET_LOCK` auf einer eigenen Verbindung (verfällt beim Absturz des Prozesses), Heartbeat vor jedem Schritt; ein zweiter Lauf wird übersprungen und als `locked` gespeichert.
+- Laufprotokoll in `news_runs`: Status, aktueller Schritt und Protokoll werden vor und nach jedem Schritt gespeichert, Auslöser `cron` oder `manual`. Liegengebliebene Läufe gelten beim nächsten Lauf als abgebrochen (mit letztem Schritt). Es bleiben die neuesten 500 Läufe je Seite.
+- Schritt 0 Fehlerwiederholung (KNP 1.12.0): bis zu 200 Einträge mit `failed` gehen auf ihren Rücksprung-Status zurück, ohne Rücksprung entscheidet das Präfix der Meldung; ab drei Versuchen aussortiert.
+- Zeitbudget der Veröffentlichung von 120 s je Lauf (KNP 1.8.1).
+- Profile reihum: Crawl, KI und Veröffentlichung nehmen abwechselnd Einträge aus jedem Profil, jeder Lauf beginnt beim nächsten Profil.
+- Artikelziel pro Tag je Profil (`dailyTarget`, Standard 3): ist es erreicht, warten weitere Einträge bis zum nächsten Tag. Nicht relevante Meldungen zählen nicht mit. Neue Spalte `classified_at` (Migration 2).
+- Tageslimit für KI-Aufrufe je Seite (`dailyAiLimit`, Standard 60, 0 = ohne Limit), gezählt in `news_usage`. Ist es erreicht, endet der KI-Schritt regulär, ohne Fehlversuch.
+- Zeitzone der Seite (`timezone`, Standard Europe/Berlin) für Tagesgrenzen, auch an Tagen mit Zeitumstellung.
+- Befehlszeile: `run` startet nur, wenn laut Intervall ein Lauf fällig ist (zwei Minuten Spielraum), `run --force` sofort; `status` zeigt den letzten Lauf.
+
+### Geändert
+
+- `runPipeline(ctx, { trigger })` liefert zusätzlich `runId` und den Status `locked`.
+
 ## [0.1.0] – 16.10.2026
 
 Phase 1 laut `PROJEKTPLAN.md`: Pipeline-Kern ohne Backend, Lauf per Befehlszeile.

@@ -6,7 +6,7 @@ import type { PipelineContext, RunState, StepResult } from "../context";
 import { crawlArticle } from "../fetchPage";
 
 export async function crawl(ctx: PipelineContext, run: RunState): Promise<StepResult> {
-  const entries = await ctx.store.takeByStatus(ctx.siteId, ["new"], run.settings.maxPerRun, { kind: "rss" });
+  const entries = await ctx.store.takeFair(ctx.siteId, ["new"], run.settings.maxPerRun, run.activeProfileIds, { kind: "rss" });
   let ok = 0;
   for (const entry of entries) {
     try {

@@ -172,8 +172,7 @@ describe("Veröffentlichung", () => {
     expect(target.posts).toHaveLength(1);
     const [f] = await store.takeByStatus(SITE, ["failed"], 5);
     expect(f).toMatchObject({ retryStatus: "classified", error: "Publish: Beitrag anlegen: Verbindung abgebrochen" });
-    // Wiederholung (in 0.2.0 automatisch) hier von Hand: Status zurück auf den Rücksprung
-    await store.updateEntry(f!.id, { status: "classified" });
+    // Die Wiederholung am Anfang des nächsten Laufs setzt den Eintrag zurück auf „classified“
     await runPipeline(ctx);
     expect(target.posts).toHaveLength(1);
     expect(target.posts[0]!.completed).toBe(1);
@@ -219,7 +218,8 @@ describe("CLI", () => {
     expect(await runCli(["run"], build, (l) => lines.push(l))).toBe(0);
     expect(lines.at(-1)).toBe("Lauf abgeschlossen.");
     expect(await runCli(["status"], build, (l) => lines.push(l))).toBe(0);
-    expect(lines.at(-1)).toMatch(/^new: \d+, crawled: \d+, classified: 1,/);
+    expect(lines.at(-2)).toMatch(/^new: \d+, crawled: \d+, classified: 1,/);
+    expect(lines.at(-1)).toMatch(/^Letzter Lauf: .* completed: Lauf abgeschlossen\.$/);
     expect(await runCli(["quatsch"], build, (l) => lines.push(l))).toBe(2);
     expect(await runCli(["run"], async () => { throw new Error("keine Datenbank"); }, (l) => lines.push(l))).toBe(1);
     expect(lines.at(-1)).toBe("Fehler: keine Datenbank");

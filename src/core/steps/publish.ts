@@ -11,6 +11,8 @@ import { hostOf } from "../urls";
 import { sourceKindOf, type Category, type PostPayload, type QueueEntry } from "../types";
 
 export const MAX_SOURCE_LINKS = 5;
+/** Zeitbudget der Veröffentlichung je Lauf (KNP 1.8.1) */
+export const PUBLISH_BUDGET_MS = 120_000;
 
 /** Kategoriename für den Beitrag (Entscheidung 0004): feste Kategorie > Schlüssel der KI > Rückfall „News“ */
 export function resolveCategory(entry: QueueEntry, fixedCategory: string | null, categories: Category[], fallback: string): string | null {
@@ -54,12 +56,19 @@ export function buildPostPayload(entry: QueueEntry, run: Pick<RunState, "setting
 
 export async function publish(ctx: PipelineContext, run: RunState): Promise<StepResult> {
   const from = run.settings.requireApproval ? "approved" : "classified";
-  const entries = await ctx.store.takeByStatus(ctx.siteId, [from], run.settings.maxPerRun);
+  const entries = await ctx.store.takeFair(ctx.siteId, [from], run.settings.maxPerRun, run.activeProfileIds);
   if (!entries.length) return { summary: "Veröffentlichung: nichts zu veröffentlichen." };
 
+  const budget = ctx.publishBudgetMs ?? PUBLISH_BUDGET_MS;
+  const started = Date.now();
   let categories: Category[] | null = null;
   let done = 0;
+  let budgetHit = "";
   for (const entry of entries) {
+    if (Date.now() - started > budget) {
+      budgetHit = ` Zeitbudget von ${Math.round(budget / 1000)} s erreicht, der Rest folgt im nächsten Lauf.`;
+      break;
+    }
     let phase = "Kategorie";
     try {
       categories ??= await ctx.target.categories();
@@ -85,5 +94,5 @@ export async function publish(ctx: PipelineContext, run: RunState): Promise<Step
       run.logger.log(`Veröffentlichung: Eintrag ${entry.id} in Phase „${phase}“ ${status === "rejected" ? "aussortiert" : "fehlgeschlagen"}: ${(e as Error).message}`);
     }
   }
-  return { summary: `Veröffentlichung: ${done} von ${entries.length} Beiträgen veröffentlicht.` };
+  return { summary: `Veröffentlichung: ${done} von ${entries.length} Beiträgen veröffentlicht.${budgetHit}` };
 }
