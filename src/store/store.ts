@@ -328,6 +328,23 @@ export class NewsStore {
     return { sql, params };
   }
 
+  /** Original- und KI-Titel der letzten Queue-Einträge (für den Brave-Abgleich) */
+  async recentQueueTitles(siteId: string, limit: number): Promise<string[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT title_original, rewritten_title FROM news_queue WHERE site_id = ? ORDER BY id DESC LIMIT ?", [siteId, limit]);
+    return rows.flatMap((r) => [r.title_original, r.rewritten_title]).filter((t): t is string => typeof t === "string" && t.length > 0);
+  }
+
+  /** Heute schon angelegte Brave-Themen eines Profils */
+  async countBraveSince(siteId: string, profileId: number, since: Date): Promise<number> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT COUNT(*) AS n FROM news_queue WHERE site_id = ? AND profile_id = ? AND feed_url = ? AND created_at >= ?", [
+      siteId,
+      profileId,
+      BRAVE_FEED_MARK,
+      since,
+    ]);
+    return Number(rows[0]?.n ?? 0);
+  }
+
   /** Anzahl der seit `since` neu geschriebenen Einträge je Profil (für das Artikelziel pro Tag) */
   async countClassifiedSince(siteId: string, since: Date): Promise<Map<number, number>> {
     const [rows] = await this.pool.query<RowDataPacket[]>(

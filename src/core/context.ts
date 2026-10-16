@@ -2,6 +2,7 @@ import type { NewsStore, RunTrigger } from "../store/store";
 import type { HttpClient } from "./http";
 import type { Profile, SiteSettings } from "./settings";
 import type { LlmFn, PublishTarget, RunLogger } from "./types";
+import type { BraveSession } from "./steps/braveDiscover";
 
 /** Alles, was ein Lauf von außen bekommt */
 export interface PipelineContext {
@@ -16,6 +17,10 @@ export interface PipelineContext {
   random?: () => number;
   /** Zeitbudget der Veröffentlichung je Lauf, Standard 120 s (KNP 1.8.1) */
   publishBudgetMs?: number;
+  /** Brave-Schlüssel aus der `.env` der Seite (`BRAVE_API_KEY`); ohne ihn keine Themensuche und keine Nachsuche */
+  braveApiKey?: string | null;
+  /** Warten (für die Pause zwischen Brave-Anfragen); in Tests ersetzbar */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** Zustand eines Laufs: geladene Einstellungen und Profile, Protokoll */
@@ -36,6 +41,8 @@ export interface RunState {
   dayKey: string;
   /** KI-Aufruf mit Tageslimit; null ohne Schlüssel */
   llm: LlmFn | null;
+  /** Brave-Zugang mit Tageslimit und Pause; null ohne Brave-Schlüssel */
+  brave: BraveSession | null;
 }
 
 export interface StepResult {
@@ -45,3 +52,5 @@ export interface StepResult {
 
 /** Tageslimit erreicht: der Schritt endet regulär, der Rest folgt am nächsten Tag */
 export class DailyLimitError extends Error {}
+
+export const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

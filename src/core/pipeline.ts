@@ -2,10 +2,11 @@
  * Ein Lauf: Sperre holen, Lauf-Zeile anlegen, Einstellungen und Profile laden, dann die Schritte in der
  * Reihenfolge aus KNP 1.12.1. Vor jedem Schritt prüft ein Heartbeat die Sperre; Status und Protokoll
  * werden vor und nach jedem Schritt gespeichert, damit bei einem Absturz sichtbar bleibt, wo es hing.
- * Brave folgt mit 0.3.0, Bilder mit 0.4.0.
+ * Bilder folgen mit 0.4.0.
  */
 import type { RunTrigger } from "../store/store";
 import { DailyLimitError, type PipelineContext, type RunState, type StepResult } from "./context";
+import { braveDiscover, createBraveSession } from "./steps/braveDiscover";
 import { classify } from "./steps/classify";
 import { crawl } from "./steps/crawl";
 import { importFeeds } from "./steps/importFeeds";
@@ -17,6 +18,8 @@ import { CRON_INTERVALS, type CronInterval } from "./settings";
 
 export interface RunOptions {
   trigger?: RunTrigger;
+  /** Nur die Brave-Themensuche, ohne Zeitplan und Schalter (Knopf „Brave-Themen jetzt suchen“) */
+  braveOnly?: boolean;
 }
 
 export interface RunResult {
@@ -32,6 +35,7 @@ export const STEPS: Step[] = [
   { name: "Wiederholung", fn: retryFailed },
   { name: "Veröffentlichung", fn: publish },
   { name: "RSS-Import", fn: importFeeds },
+  { name: "Brave-Themensuche", fn: (ctx, run) => braveDiscover(ctx, run) },
   { name: "Crawl", fn: crawl },
   { name: "KI", fn: classify },
 ];
@@ -103,12 +107,15 @@ export async function runPipeline(ctx: PipelineContext, opts: RunOptions = {}): 
       dayStart: startOfLocalDay(start, settings.timezone),
       dayKey: localDayKey(start, settings.timezone),
       llm: null,
+      brave: null,
     };
     run.llm = limitedLlm(ctx, run);
+    run.brave = createBraveSession(ctx, run);
+    const steps: Step[] = opts.braveOnly ? [{ name: "Brave-Themensuche", fn: (c, r) => braveDiscover(c, r, { manual: true }) }] : STEPS;
     if (!run.activeProfileIds.length) logger.log("Hinweis: kein aktives Profil, es werden keine neuen Meldungen gesucht.");
 
     let failed = false;
-    for (const step of STEPS) {
+    for (const step of steps) {
       if (!(await lock.stillHeld())) {
         failed = true;
         logger.log(`Sperre verloren vor Schritt ${step.name}, Lauf abgebrochen.`);

@@ -99,7 +99,7 @@ Jede Phase endet mit `pnpm check`, `pnpm test`, Changelog-Eintrag, Tag und Push.
 ## Offene Punkte und Risiken
 
 - **Hersteller-Feeds:** Ob Garmin, Samsung, Apple und andere RSS-Feeds mit lesbaren Meldungen anbieten und die Übernahme erlauben, ist ungeprüft. Ohne sie lebt der Pilot fast nur von Brave.
-- **Brave-Tarif:** Aktuelle Limits und Kosten des Brave-Plans vor Phase 3 prüfen; ein gemeinsamer Schlüssel für mehrere Seiten teilt sich das Anfragelimit.
+- **Brave-Tarif (geklärt 16.10.2026):** 5 US-Dollar je 1000 Anfragen, 50 Anfragen pro Sekunde. Eine Seite mit zwei Profilen, je fünf Suchbegriffen und drei Themen am Tag braucht grob 40 Anfragen täglich (etwa 6 Dollar im Monat). Schutz: `dailyBraveLimit` je Seite (Standard 200), Pause `braveDelayMs` kann auf 100 bis 200 ms sinken.
 - **Bündeln der Git-Abhängigkeit:** Der Build der Seiten nutzt `--packages=external`. Das Paket muss davon ausgenommen werden; Lösung in Phase 5 testen.
 - **Zeitlimits der KI-Kette:** KNP gibt KI-Aufrufen 180 s und ein Token-Limit nach Länge. Prüfen, ob `callLlm` der Seiten das zulässt, sonst Erweiterung der Seite nötig.
 - **Admin-Knopf unter Passenger:** Wird der App-Prozess während eines Laufs beendet, verfällt die Sperre; halb bearbeitete Einträge laufen über die Fehlerwiederholung. Im Test simulieren.

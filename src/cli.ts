@@ -5,7 +5,8 @@
  *   process.exitCode = await runCli(process.argv.slice(2), async () => ({ ctx, close }));
  *
  * Befehle: `migrate` (Tabellen anlegen), `run` (Lauf, wenn laut Intervall fällig), `run --force`
- * (sofort, gilt als manueller Lauf), `status` (Einträge je Status und letzter Lauf).
+ * (sofort, gilt als manueller Lauf), `brave` (nur Brave-Themensuche, ohne Zeitplan), `status` (Einträge je
+ * Status und letzter Lauf).
  * Plesk-Cron ruft `run` alle 15 Minuten auf; das Intervall aus den Einstellungen entscheidet, ob wirklich
  * ein Lauf startet (Entscheidung 0002).
  */
@@ -18,11 +19,11 @@ export interface CliEnvironment {
   close(): Promise<void>;
 }
 
-export const CLI_USAGE = "Aufruf: news <migrate|run [--force]|status>";
+export const CLI_USAGE = "Aufruf: news <migrate|run [--force]|brave|status>";
 
 export async function runCli(argv: string[], build: () => Promise<CliEnvironment>, out: (line: string) => void = (l) => console.log(l)): Promise<number> {
   const cmd = argv[0];
-  if (cmd !== "migrate" && cmd !== "run" && cmd !== "status") {
+  if (cmd !== "migrate" && cmd !== "run" && cmd !== "brave" && cmd !== "status") {
     out(CLI_USAGE);
     return 2;
   }
@@ -43,7 +44,7 @@ export async function runCli(argv: string[], build: () => Promise<CliEnvironment
       out(last ? `Letzter Lauf: ${last.startedAt.toISOString()} ${last.status}${last.step ? ` (Schritt ${last.step})` : ""}${last.message ? `: ${last.message}` : ""}` : "Noch kein Lauf.");
       return 0;
     }
-    const force = argv.includes("--force");
+    const force = argv.includes("--force") || cmd === "brave";
     if (!force) {
       const settings = await ctx.store.getSettings(ctx.siteId);
       const last = await ctx.store.lastRunStart(ctx.siteId);
@@ -53,7 +54,7 @@ export async function runCli(argv: string[], build: () => Promise<CliEnvironment
         return 0;
       }
     }
-    const res = await runPipeline(ctx, { trigger: force ? "manual" : "cron" });
+    const res = await runPipeline(ctx, { trigger: force ? "manual" : "cron", braveOnly: cmd === "brave" });
     for (const line of res.log) out(line);
     if (res.status === "locked") {
       out("Übersprungen.");

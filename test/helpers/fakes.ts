@@ -6,13 +6,13 @@ import type { Category, LlmFn, LlmRequest, PostPayload, PublishTarget } from "..
 
 type FakeRoute = { status?: number; body: string; headers?: Record<string, string> } | ((req: HttpRequest) => HttpResponse | Promise<HttpResponse>);
 
-export function createFakeHttp(routes: Record<string, FakeRoute>) {
+export function createFakeHttp(routes: Record<string, FakeRoute>, fallback?: (req: HttpRequest) => HttpResponse | null) {
   const calls: HttpRequest[] = [];
   const client: HttpClient = {
     async request(req) {
       calls.push(req);
       const route = routes[req.url];
-      if (!route) return { status: 404, url: req.url, headers: {}, body: Buffer.from("nicht gefunden") };
+      if (!route) return fallback?.(req) ?? { status: 404, url: req.url, headers: {}, body: Buffer.from("nicht gefunden") };
       if (typeof route === "function") return route(req);
       return { status: route.status ?? 200, url: req.url, headers: route.headers ?? { "content-type": "text/html; charset=utf-8" }, body: Buffer.from(route.body, "utf8") };
     },
@@ -103,4 +103,19 @@ export function rssXml(title: string, items: { title: string; link: string; guid
 
 export function articleHtml(text: string): string {
   return `<html><body><nav>Menü</nav><article><h1>Artikel</h1><p>${text}</p></article><footer>Impressum</footer></body></html>`;
+}
+
+/** Attrappe der Brave News API: Antwort je Suchbegriff (`q`), Zahl = HTTP-Status */
+export function braveApi(byQuery: Record<string, { title: string; url: string; description?: string; age?: string }[] | number>) {
+  const queries: { q: string; count: string; lang: string; country: string | null; freshness: string; token: string }[] = [];
+  const handler = (req: HttpRequest): HttpResponse | null => {
+    if (!req.url.startsWith("https://api.search.brave.com/res/v1/news/search?")) return null;
+    const u = new URL(req.url);
+    const q = u.searchParams.get("q") ?? "";
+    queries.push({ q, count: u.searchParams.get("count") ?? "", lang: u.searchParams.get("search_lang") ?? "", country: u.searchParams.get("country"), freshness: u.searchParams.get("freshness") ?? "", token: req.headers?.["X-Subscription-Token"] ?? "" });
+    const answer = byQuery[q] ?? [];
+    if (typeof answer === "number") return { status: answer, url: req.url, headers: {}, body: Buffer.from("Fehler " + answer) };
+    return { status: 200, url: req.url, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify({ results: answer })) };
+  };
+  return { handler, queries };
 }

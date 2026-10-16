@@ -98,6 +98,48 @@ export function braveUserMessage(titleOriginal: string, fullContent: string): st
   return `THEMA: ${titleOriginal}\n\nQUELLEN:\n${fullContent.slice(0, BRAVE_INPUT_MAX)}`;
 }
 
+// ─── Brave-Themenauswahl ───────────────────────────────────────────────────────────────────────
+
+export const BRAVE_SELECT_MAX_TOKENS = 2000;
+
+export function braveSelectSystemPrompt(topicPrompt: string, today: string): string {
+  return (
+    "Du bist Chefredakteur einer Online-Zeitung und wählst neue Themen aus aktuellen Suchtreffern aus.\n\n" +
+    "THEMENPROFIL DER ZEITUNG:\n" +
+    topicPrompt.trim() +
+    "\n\n" +
+    `Heute ist ${today}. Verwende ausschließlich die gelieferten Suchtreffer und erfinde keine Nachrichten.`
+  );
+}
+
+export interface BraveSelectInput {
+  bravePrompt: string;
+  known: string[];
+  results: { title: string; desc: string; url: string; age?: string }[];
+  days: number;
+  count: number;
+  language: string;
+}
+
+export function braveSelectUserPrompt(i: BraveSelectInput): string {
+  const known = i.known.length ? i.known.map((h) => `- ${h}`).join("\n") : "- (noch keine)";
+  const hits = i.results.map((r, n) => `${n + 1}. ${r.title} | ${r.desc} | ${r.url}${r.age ? ` | ${r.age}` : ""}`).join("\n");
+  return (
+    i.bravePrompt.trim() +
+    "\n\n" +
+    "BEREITS BEHANDELTE ÜBERSCHRIFTEN (nie wiederholen, auch nicht umformuliert):\n" +
+    known +
+    "\n\n" +
+    `AKTUELLE SUCHTREFFER (letzte ${i.days} Tage, nur daraus auswählen):\n` +
+    hits +
+    "\n\n" +
+    "AUSGABE (hat Vorrang vor allen Formatvorgaben weiter oben):\n" +
+    `Wähle bis zu ${i.count} Themen. Zu jedem Thema eine Überschrift auf ${i.language}, die klar sagt, was neu ist und warum es Leser interessiert, mit genug Kontext für einen vollständigen Artikel. Dazu die Nummern der Suchtreffer, die das Thema belegen (1 bis 5 Nummern).\n` +
+    "Gibt es nichts wirklich Neues, liefere eine leere Liste.\n" +
+    'Antworte ausschließlich mit einem JSON-Objekt ohne Markdown: {"topics": [{"headline": "...", "sources": [3, 7]}]}'
+  );
+}
+
 export const DEFAULT_BRAVE_PROMPT =
   "Finde die nützlichsten neuen Themen aus den Suchtreffern, von denen unsere Leser sofort profitieren.\n\n" +
   "Bevorzuge Themen, die:\n" +

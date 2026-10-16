@@ -12,12 +12,12 @@ News-Pipeline für Thomas' Node-Seiten: Nachbau des WordPress-Plugins KI News Pu
 
 ## Stand
 
-Version 0.2.0 (Phase 2): Pipeline-Kern mit RSS-Import, Crawl, KI-Klassifikation und Veröffentlichung über die Adapter-Schnittstelle, Sperre je Seite, Laufprotokoll in `news_runs`, Fehlerwiederholung, Zeitbudget, Profile reihum, Artikelziel pro Tag, Tageslimit für KI-Aufrufe, Lauf per `runCli` mit Intervallprüfung. Es fehlen noch Brave (Phase 3), Bilder (Phase 4), Adapter für die SSR-Seiten und Admin (Phase 5).
+Version 0.3.0 (Phase 3): Pipeline-Kern mit RSS-Import, Brave-Themensuche mit Recherche, Crawl, KI-Klassifikation und Veröffentlichung über die Adapter-Schnittstelle, Sperre je Seite, Laufprotokoll in `news_runs`, Fehlerwiederholung, Zeitbudget, Profile reihum, Artikelziel pro Tag, Tageslimit für KI-Aufrufe, Lauf per `runCli` mit Intervallprüfung. Es fehlen noch Bilder (Phase 4), Adapter für die SSR-Seiten und Admin (Phase 5).
 
 ## Aufbau
 
 - `src/index.ts`: öffentliche Schnittstelle, `VERSION` aus `package.json`.
-- `src/core/`: Kern ohne Seitenbezug. `context.ts` (Kontext und Laufzustand), `time.ts` (Tagesgrenzen in der Zeitzone der Seite), `types.ts` (Queue-Eintrag, Ports `LlmFn` und `PublishTarget`), `settings.ts` (Einstellungen der Seite und der Profile mit zod und KNP-Standardwerten), `prompts.ts` (Wortlaut aus `docs/uebergabe/03`), `http.ts` (geschützter HTTP-Client), `feeds.ts`, `fetchPage.ts`, `html.ts` (Positivliste, Textextraktion), `urls.ts`, `json.ts`, `text.ts`, `lengths.ts`, `steps/` (ein Schritt je Datei, Reihenfolge in `pipeline.ts`: Wiederholung, Veröffentlichung, RSS-Import, Crawl, KI), `pipeline.ts` (Sperre, Laufprotokoll, Tageslimit).
+- `src/core/`: Kern ohne Seitenbezug. `context.ts` (Kontext und Laufzustand), `time.ts` (Tagesgrenzen in der Zeitzone der Seite), `types.ts` (Queue-Eintrag, Ports `LlmFn` und `PublishTarget`), `settings.ts` (Einstellungen der Seite und der Profile mit zod und KNP-Standardwerten), `prompts.ts` (Wortlaut aus `docs/uebergabe/03`), `http.ts` (geschützter HTTP-Client), `feeds.ts`, `fetchPage.ts`, `html.ts` (Positivliste, Textextraktion), `urls.ts`, `json.ts`, `text.ts`, `lengths.ts`, `steps/` (ein Schritt je Datei, Reihenfolge in `pipeline.ts`: Wiederholung, Veröffentlichung, RSS-Import, Brave-Themensuche, Crawl und Recherche, KI), `brave.ts` (Brave-Suche, Slots, Wortvergleich), `pipeline.ts` (Sperre, Laufprotokoll, Tageslimit).
 - `src/store/`: `migrations.ts` (nur neue Versionen anhängen) und `store.ts` (`NewsStore`, MySQL/MariaDB in UTC).
 - `src/cli.ts`: `runCli(argv, build)` für das Cron-Skript der Seite.
 - `test/`: Vitest. `helpers/fakes.ts` mit Attrappen für HTTP, KI und Zielseite, `helpers/db.ts` für die Testdatenbank.

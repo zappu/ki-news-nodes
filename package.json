@@ -1,6 +1,6 @@
 {
   "name": "ki-news-nodes",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "News-Pipeline für Node-Seiten aus der SSR-Vorlage: RSS und Brave-Themen per KI neu schreiben und im Blog der Seite veröffentlichen. Nachbau von KI News Publisher 1.12.1.",
   "private": true,
   "type": "module",

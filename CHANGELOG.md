@@ -2,6 +2,25 @@
 
 Alle Änderungen am Paket `ki-news-nodes`. Versionen nach SemVer; die Version steht nur in `package.json`.
 
+## [0.3.0] – 16.10.2026
+
+Phase 3 laut `PROJEKTPLAN.md`: Brave-Themensuche mit Recherche.
+
+### Hinzugefügt
+
+- Brave News Search (`src/core/brave.ts`): Suchzeilen mit Sprachpräfix `de|…`, Zeitraum der letzten `braveDays` Tage, Land für de, fr, es, it, pt, nl, Entdopplung über die URL (höchstens 90 Treffer), HTML aus Titeln und Beschreibungen entfernt.
+- Schritt Brave-Themensuche je Profil nach Zeitplan-Slots zwischen `braveStartHour` und `braveEndHour` in der Zeitzone der Seite; Hinweis auf den nächsten Slot; nach einer Suche ohne neues Thema eine Stunde Pause.
+- Themenauswahl per KI mit dem Prompt im Wortlaut aus `docs/uebergabe/03` (Token-Limit 2000), Rückfall auf Zeilen, wenn kein JSON kommt. Bekannte Überschriften aus der Zielseite, der Queue und den Vergleichsseiten (`h1` bis `h4`).
+- Duplikatprüfung neuer Themen über GUID, Wortvergleich (Jaccard ab 0,5) und URL der ersten Quelle.
+- Recherche im Crawl-Schritt: Nachsuche bei weniger als zwei Quellen, soziale Netzwerke fallen weg, die ersten 4 von höchstens 8 Quellen werden gelesen (je 3500 Zeichen), mindestens 300 Zeichen Faktenbasis, Recherchetext im Format `[Quelle n]`.
+- Tageslimit für Brave-Anfragen je Seite (`dailyBraveLimit`, Standard 200) und einstellbare Pause zwischen Anfragen (`braveDelayMs`, Standard 1100 ms wie im Gratis-Tarif).
+- „Brave-Themen jetzt suchen“: `runPipeline(ctx, { braveOnly: true })` und Befehl `news brave`, ohne Schalter und Zeitplan.
+- Brave-Schlüssel kommt aus der `.env` der Seite über `ctx.braveApiKey`.
+
+### Geändert
+
+- Reihenfolge eines Laufs: Wiederholung, Veröffentlichung, RSS-Import, Brave-Themensuche, Crawl und Recherche, KI.
+
 ## [0.2.0] – 16.10.2026
 
 Phase 2 laut `PROJEKTPLAN.md`: Laufsteuerung und Grenzen.

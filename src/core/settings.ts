@@ -58,6 +58,10 @@ export const siteSettingsSchema = z.object({
   fallbackCategory: str("News", 128),
   /** Tageslimit KI-Aufrufe je Seite, 0 = ohne Limit (Phase 2) */
   dailyAiLimit: clampInt(0, 10_000, 60),
+  /** Tageslimit Brave-Anfragen je Seite, 0 = ohne Limit */
+  dailyBraveLimit: clampInt(0, 10_000, 200),
+  /** Pause zwischen Brave-Anfragen; 1100 ms für den Gratis-Tarif (1 Anfrage/s), bezahlte Tarife vertragen weniger */
+  braveDelayMs: clampInt(0, 5000, 1100),
   /** Tageslimit Bilder je Seite, 0 = ohne Limit (Phase 4) */
   dailyImageLimit: clampInt(0, 10_000, 20),
   /** Nicht freigegebene Einträge verfallen nach so vielen Tagen (Phase 5) */
