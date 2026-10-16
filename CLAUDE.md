@@ -12,7 +12,22 @@ News-Pipeline für Thomas' Node-Seiten: Nachbau des WordPress-Plugins KI News Pu
 
 ## Stand
 
-Phase 0 abgeschlossen: Plan, Glossar, Entscheidungen. Noch kein Code. Nächster Schritt ist Phase 1 laut `PROJEKTPLAN.md`.
+Version 0.1.0 (Phase 1): Pipeline-Kern mit RSS-Import, Crawl, KI-Klassifikation und Veröffentlichung über die Adapter-Schnittstelle, Lauf per `runCli`. Noch ohne Sperre, Laufprotokoll in der Datenbank, Fehlerwiederholung und Zeitbudget (Phase 2), Brave (Phase 3), Bilder (Phase 4), Adapter für die SSR-Seiten und Admin (Phase 5).
+
+## Aufbau
+
+- `src/index.ts`: öffentliche Schnittstelle, `VERSION` aus `package.json`.
+- `src/core/`: Kern ohne Seitenbezug. `types.ts` (Queue-Eintrag, Ports `LlmFn` und `PublishTarget`), `settings.ts` (Einstellungen der Seite und der Profile mit zod und KNP-Standardwerten), `prompts.ts` (Wortlaut aus `docs/uebergabe/03`), `http.ts` (geschützter HTTP-Client), `feeds.ts`, `fetchPage.ts`, `html.ts` (Positivliste, Textextraktion), `urls.ts`, `json.ts`, `text.ts`, `lengths.ts`, `steps/` (ein Schritt je Datei), `pipeline.ts`.
+- `src/store/`: `migrations.ts` (nur neue Versionen anhängen) und `store.ts` (`NewsStore`, MySQL/MariaDB in UTC).
+- `src/cli.ts`: `runCli(argv, build)` für das Cron-Skript der Seite.
+- `test/`: Vitest. `helpers/fakes.ts` mit Attrappen für HTTP, KI und Zielseite, `helpers/db.ts` für die Testdatenbank.
+
+Das Paket wird als TypeScript-Quelle ausgeliefert (`exports` zeigt auf `src/index.ts`); die Seite bündelt es beim Build.
+
+## Befehle
+
+- `pnpm install`, `pnpm check` (Typprüfung), `pnpm test` (Vitest).
+- Tests brauchen MySQL oder MariaDB, Standard `mysql://news:newspass@127.0.0.1:3306/news_test`, änderbar über `TEST_DATABASE_URL`. Die Tests legen die `news_`-Tabellen jedes Mal neu an.
 
 ## Grundlagen
 
