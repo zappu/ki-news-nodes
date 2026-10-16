@@ -436,6 +436,21 @@ export class NewsStore {
     return res.affectedRows;
   }
 
+  /** Beitrag, der zu diesem Queue-Eintrag schon angelegt wurde (Idempotenz unabhängig vom Adapter) */
+  async getPostLink(siteId: string, queueId: number): Promise<string | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>("SELECT post_ref FROM news_post_links WHERE site_id = ? AND queue_id = ?", [siteId, queueId]);
+    return rows[0]?.post_ref ?? null;
+  }
+
+  async linkPost(siteId: string, queueId: number, postRef: string): Promise<void> {
+    await this.pool.query("INSERT INTO news_post_links (site_id, queue_id, post_ref, created_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE post_ref = VALUES(post_ref)", [
+      siteId,
+      queueId,
+      postRef,
+      this.now(),
+    ]);
+  }
+
   /** Liste für den Admin, neueste zuerst, mit Filtern und Seiten */
   async listQueue(siteId: string, f: QueueListFilter = {}): Promise<{ items: QueueEntry[]; total: number }> {
     const where: string[] = ["site_id = ?"];
@@ -678,6 +693,8 @@ function rowToRun(r: RowDataPacket): RunRow {
 /** Store aus einer Datenbank-URL (eigener kleiner Pool in UTC) oder aus einem vorhandenen Pool */
 export function createNewsStore(opts: { url: string; connectionLimit?: number } | { pool: Pool }, now?: () => Date): NewsStore {
   if ("pool" in opts) return new NewsStore(opts.pool, now);
-  const pool = mysql.createPool({ uri: opts.url, timezone: "Z", connectionLimit: opts.connectionLimit ?? 4, charset: "utf8mb4_unicode_ci" });
+  const pool = mysql.createPool({ uri: opts.url, timezone: "Z", connectionLimit: opts.connectionLimit ?? 4, charset: "utf8mb4_unicode_ci", enableKeepAlive: true });
+  // Sitzungszeitzone UTC, damit Datumsfunktionen der Datenbank zu den gespeicherten Zeiten passen
+  pool.pool.on("connection", (conn) => conn.query("SET time_zone = '+00:00'"));
   return new NewsStore(pool, now);
 }

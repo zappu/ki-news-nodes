@@ -1,7 +1,7 @@
 /**
  * Ganzer Lauf gegen die Testdatenbank, mit Attrappen für Feeds, Quellseiten, KI und Zielseite.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/cli";
 import type { PipelineContext } from "../src/core/context";
 import { runPipeline } from "../src/core/pipeline";
@@ -178,6 +178,31 @@ describe("Veröffentlichung", () => {
     expect(target.posts[0]!.completed).toBe(1);
     expect((await store.getEntry(f!.id))!.status).toBe("published");
   });
+  it("Abbruch nach dem Anlegen: die gespeicherte Zuordnung verhindert einen zweiten Beitrag", async () => {
+    await store.saveSettings(SITE, { requireApproval: false });
+    await profile({ feeds: ["https://garmin.test/rss"] });
+    const { ctx, target } = setup();
+    target.target.findExisting = async () => null; // Adapter erkennt nichts wieder
+    await runPipeline(ctx);
+    const orig = store.updateEntry.bind(store);
+    let crashed = false;
+    const spy = vi.spyOn(store, "updateEntry").mockImplementation(async (id, patch) => {
+      if (patch.status === "published" && !crashed) {
+        crashed = true;
+        throw new Error("Prozess beendet");
+      }
+      return orig(id, patch);
+    });
+    await runPipeline(ctx);
+    spy.mockRestore();
+    expect(crashed).toBe(true);
+    expect(target.posts).toHaveLength(1);
+    await runPipeline(ctx);
+    expect(target.posts).toHaveLength(1);
+    expect(target.posts[0]!.completed).toBe(1);
+    expect((await store.takeByStatus(SITE, ["published"], 5))).toHaveLength(1);
+  });
+
   it("ohne Quellenangabe und KI-Hinweis", async () => {
     await store.saveSettings(SITE, { requireApproval: false, addSourceLink: false, aiDisclosure: "", tagsEnabled: false, postStatus: "draft" });
     await profile({ feeds: ["https://garmin.test/rss"] });

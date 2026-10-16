@@ -38,5 +38,10 @@
   },
   "peerDependencies": {
     "react": ">=19"
-  }
+  },
+  "files": [
+    "src",
+    "CHANGELOG.md",
+    "docs/EINBAU.md"
+  ]
 }

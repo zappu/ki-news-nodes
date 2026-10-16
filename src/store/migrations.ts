@@ -121,6 +121,19 @@ export const MIGRATIONS: Migration[] = [
       "ALTER TABLE news_queue ADD KEY idx_news_queue_classified (site_id, profile_id, classified_at)",
     ],
   },
+  {
+    version: 3,
+    name: "Zuordnung Queue-Eintrag zu Beitrag",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS news_post_links (
+        site_id VARCHAR(64) NOT NULL,
+        queue_id INT NOT NULL,
+        post_ref VARCHAR(191) NOT NULL,
+        created_at DATETIME NOT NULL,
+        PRIMARY KEY (site_id, queue_id)
+      ) ${T}`,
+    ],
+  },
 ];
 
 /** Führt fehlende Migrationen aus. Mehrere Prozesse gleichzeitig sind durch eine Datenbank-Sperre geschützt. */

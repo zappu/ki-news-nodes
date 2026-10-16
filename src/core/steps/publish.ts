@@ -75,7 +75,8 @@ export async function publish(ctx: PipelineContext, run: RunState): Promise<Step
       phase = "Inhalt";
       const payload = buildPostPayload(entry, run, categories);
       phase = "Beitrag suchen";
-      const existing = await ctx.target.findExisting({ queueId: entry.id, title: payload.title, fingerprint: contentFingerprint(payload.html) });
+      const existing =
+        (await ctx.store.getPostLink(ctx.siteId, entry.id)) ?? (await ctx.target.findExisting({ queueId: entry.id, title: payload.title, fingerprint: contentFingerprint(payload.html) }));
       let ref: string;
       if (existing) {
         phase = "Beitrag vervollständigen";
@@ -84,6 +85,8 @@ export async function publish(ctx: PipelineContext, run: RunState): Promise<Step
       } else {
         phase = "Beitrag anlegen";
         ref = (await ctx.target.createPost(payload)).ref;
+        // Zuordnung sofort festhalten, damit ein Abbruch danach keinen zweiten Beitrag erzeugt
+        await ctx.store.linkPost(ctx.siteId, entry.id, ref);
       }
       phase = "Status";
       await ctx.store.updateEntry(entry.id, { postRef: ref, status: "published", error: null });
